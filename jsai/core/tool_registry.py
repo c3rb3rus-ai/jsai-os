@@ -1,25 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Callable, Any
-
-
-class RiskLevel(Enum):
-    READ_ONLY = "read_only"
-    USER_CHANGE = "user_change"
-    SYSTEM_CHANGE = "system_change"
-    HIGH_RISK = "high_risk"
-
-
-@dataclass
-class Tool:
-    name: str
-    description: str
-    function: Callable[..., Any]
-    risk: RiskLevel
-    requires_permission: bool
-
+from typing import Any
+from jsai.security.authorization import authorize, AuthorizationDecision
+from jsai.core.models import Tool
 
 class ToolRegistry:
     def __init__(self) -> None:
@@ -42,10 +25,18 @@ class ToolRegistry:
 
     def execute(self, name: str, **kwargs: Any) -> Any:
         tool = self.get(name)
+        decision = authorize(tool)
 
-        if tool.requires_permission:
+
+        if decision == AuthorizationDecision.REQUIRE_APPROVAL:
             raise PermissionError(
-                f"Tool '{name}' requires user permission before execution."
+                f"Tool '{name}' requires user approval before execution."
+            )
+
+        if decision == AuthorizationDecision.DENY:
+            raise PermissionError(
+                f"Tool '{name}' is denied by security policy."
             )
 
         return tool.function(**kwargs)
+
